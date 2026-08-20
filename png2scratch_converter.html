@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>png2scr converter - v2</title>
+  <style>
+    body {
+      background-color: white;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: sans-serif;
+      gap: 15px;
+    }
+
+    .btn {
+      background-color: black;
+      color: white;
+      border: 1px solid black;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .res-btn {
+      background-color: white;
+      color: black;
+      border: 1px solid black;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .res-btn.active {
+      background-color: black;
+      color: white;
+    }
+
+    .res-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    #file-input {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="btn" id="upload-btn">upload</button>
+  <input type="file" id="file-input" accept="image/png">
+
+  <div class="res-group">
+    <button class="res-btn" data-res="25">25x25</button>
+    <button class="res-btn" data-res="50">50x50</button>
+    <button class="res-btn" data-res="100">100x100</button>
+    <button class="res-btn active" data-res="200">200x200</button>
+  </div>
+
+  <button class="btn" id="convert-btn">convert</button>
+
+  <script>
+    const uploadBtn = document.getElementById('upload-btn');
+    const fileInput = document.getElementById('file-input');
+    const convertBtn = document.getElementById('convert-btn');
+    const resButtons = document.querySelectorAll('.res-btn');
+    
+    let selectedRes = 200;
+    let uploadedImage = null;
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            uploadedImage = img;
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    resButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        resButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedRes = parseInt(btn.getAttribute('data-res'));
+      });
+    });
+
+    function rgbToHsb(r, g, b) {
+      r /= 255;
+      g /= 255;
+      b /= 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const d = max - min;
+      let h = 0;
+      const s = max === 0 ? 0 : d / max;
+      const v = max;
+
+      if (max !== min) {
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+
+      const h2 = String(Math.min(99, Math.floor(h * 100))).padStart(2, '0');
+      const s2 = String(Math.min(99, Math.floor(s * 100))).padStart(2, '0');
+      const b2 = String(Math.min(99, Math.floor(v * 100))).padStart(2, '0');
+
+      return h2 + s2 + b2;
+    }
+
+    convertBtn.addEventListener('click', () => {
+      if (!uploadedImage) {
+        alert('Please upload a PNG image first.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = selectedRes;
+      canvas.height = selectedRes;
+      const ctx = canvas.getContext('2d');
+
+      ctx.drawImage(uploadedImage, 0, 0, selectedRes, selectedRes);
+      const imgData = ctx.getImageData(0, 0, selectedRes, selectedRes).data;
+
+      let fileContent = `${selectedRes}\n`;
+
+      for (let y = selectedRes - 1; y >= 0; y--) {
+        for (let x = 0; x < selectedRes; x++) {
+          const i = (y * selectedRes + x) * 4;
+          const r = imgData[i];
+          const g = imgData[i + 1];
+          const b = imgData[i + 2];
+          fileContent += rgbToHsb(r, g, b) + '\n';
+        }
+      }
+
+      const blob = new Blob([fileContent], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'png.txt';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+  </script>
+</body>
+</html>
